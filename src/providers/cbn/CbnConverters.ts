@@ -2,6 +2,19 @@ import { ContentFile, ContentItem, Instructions, InstructionItem } from "../../i
 import { createFolder, createFile } from "../../utils";
 import { CbnCatalogCategory , CbnCatalogCourse, CbnLesson, CbnLessonPlaylist, CbnThumb } from "./CbnInterfaces";
 
+/**
+ * Android release builds block plain HTTP (cleartext) network traffic by default.
+ * CBN's API sometimes returns http:// URLs for otherwise-HTTPS-capable CDNs
+ * (e.g. Brightcove), so force https:// here rather than loosening the app's
+ * network security policy.
+ */
+function toHttps(url: string | null | undefined): string | null | undefined {
+  if (typeof url === "string" && url.startsWith("http://")) {
+    return "https://" + url.slice("http://".length);
+  }
+  return url;
+}
+
 /** Normalize a `thumb` (plain URL string or WordPress attachment object) to a URL string. */
 export function resolveThumb(thumb: CbnThumb | null | undefined): string | undefined {
   if (typeof thumb === "string") return thumb || undefined;
@@ -45,18 +58,18 @@ export function convertLessonsToFolders(lessons: CbnLesson[], coursePath: string
  */
 export function convertPlaylistToFiles(playlist: CbnLessonPlaylist): ContentFile[] {
   return playlist.playlist.map(v => {
-    const file = createFile(v.video_id, v.title, v.mp4_url || v.playback_url, {
+    const file = createFile(v.video_id, v.title, toHttps(v.mp4_url) || toHttps(v.playback_url) || "", {
       mediaType: "video",
       thumbnail: undefined
     });
     file.mediaId = v.video_id;
-    file.downloadUrl = v.mp4_url ?? undefined;
+    file.downloadUrl = toHttps(v.mp4_url) ?? undefined;
     file.providerData = {
       brightcovePolicyKey: playlist.brightcove_policy_key,
       brightcoveAccountId: v.account_id,
       brightcoveVideoId: v.video_id,
-      brightcovePlaybackUrl: v.playback_url,
-      brightcoveMp4Url: v.mp4_url
+      brightcovePlaybackUrl: toHttps(v.playback_url),
+      brightcoveMp4Url: toHttps(v.mp4_url)
     };
     return file;
   });
