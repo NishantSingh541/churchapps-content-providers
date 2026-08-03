@@ -66,6 +66,15 @@ export interface ContentFolder {
   thumbnail?: string;
   isLeaf?: boolean;
   path: string;
+  /**
+   * When true, selecting this folder should always show its contents as a
+   * browsable grid, even if every item turns out to be a file — instead of
+   * ContentBrowserScreen's default behavior of auto-playing all files found
+   * inside a folder. Used for lessons containing multiple distinct videos
+   * (main episode, Bible story, karaoke tracks, etc.) that should be
+   * individually selectable rather than auto-played as one sequence.
+   */
+  browseAsGrid?: boolean;
 }
 
 export interface ContentFile {

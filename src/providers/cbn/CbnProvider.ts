@@ -48,9 +48,10 @@ export class CbnProvider implements IProvider {
   readonly capabilities: ProviderCapabilities = { browse: true, playlist: true, instructions: true, mediaLicensing: false };
   async browse(path?: string | null, auth?: ContentProviderAuthData | null): Promise<ContentItem[]> {
     const { segments, depth } = parsePath(path);
-    if (depth === 0) {
-      return [{ type: "folder" as const, id: "catalog-root", title: "Catalog", path: "/catalog" }];
-    }
+    // Skip the intermediate "Catalog" wrapper folder — go straight to the
+    // Preschool/Primary School categories, since there's nothing meaningful
+    // to browse at the true root level.
+    if (depth === 0) return this.getCatalogs(auth);
     if (segments[0] !== "catalog") return [];
     if (depth === 1) return this.getCatalogs(auth);
     if (depth === 2) {
@@ -89,7 +90,7 @@ export class CbnProvider implements IProvider {
   }
   private async getVideos(lessonId: string, auth?: ContentProviderAuthData | null): Promise<ContentItem[]> {
     const playlist = await this.fetchPlaylist(lessonId, auth);
-    return playlist ? convertPlaylistToFiles(playlist) : [];
+    return playlist ? await convertPlaylistToFiles(playlist) : [];
   }
   private async fetchPlaylist(lessonId: string, auth?: ContentProviderAuthData | null): Promise<CbnLessonPlaylist | null> {
     const pathFn = this.config.endpoints!.lessonPlaylist as (id: string) => string;
@@ -116,14 +117,14 @@ export class CbnProvider implements IProvider {
     if (!lessonId) return null;
     const playlist = await this.fetchPlaylist(lessonId, auth);
     if (!playlist || playlist.playlist.length === 0) return null;
-    return convertPlaylistToFiles(playlist);
+    return await convertPlaylistToFiles(playlist);
   }
   async getInstructions(path: string, auth?: ContentProviderAuthData | null): Promise<Instructions | null> {
     const lessonId = this.lessonIdFromPath(path);
     if (!lessonId) return null;
     const playlist = await this.fetchPlaylist(lessonId, auth);
     if (!playlist || playlist.playlist.length === 0) return null;
-    return convertPlaylistToInstructions(playlist);
+    return await convertPlaylistToInstructions(playlist);
   }
   /**
    * Resolve today's scheduled lesson for a specific school type.
@@ -147,6 +148,7 @@ export class CbnProvider implements IProvider {
   } | null> {
     const basePath = this.config.endpoints!.today as string;
     const response = await this.apiRequest<CbnTodayResponse>(`${basePath}?category=${category}`, auth);
+    console.log(`[cbn][DEBUG] today?category=${category} playlist length:`, response?.schedule?.playlist?.playlist?.length ?? "no schedule/playlist");
     if (!response?.success || !response.schedule) return null;
     const { schedule } = response;
     if (!schedule.playlist || schedule.playlist.playlist.length === 0) return null;
@@ -157,8 +159,8 @@ export class CbnProvider implements IProvider {
       lessonTitle: schedule.lesson.title,
       scheduledDate: schedule.date,
       category: schedule.category ?? null,
-      files: convertPlaylistToFiles(schedule.playlist),
-      instructions: convertPlaylistToInstructions(schedule.playlist)
+      files: await convertPlaylistToFiles(schedule.playlist),
+      instructions: await convertPlaylistToInstructions(schedule.playlist)
     };
   }
   supportsDeviceFlow(): boolean {
