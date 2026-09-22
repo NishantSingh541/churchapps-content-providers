@@ -5,6 +5,12 @@ export interface ContentProviderAuthData {
   created_at: number;
   expires_in: number;
   scope: string;
+  /** Identity fields, present for providers that return them (e.g. CBN's
+   * device-flow/refresh responses) — used to detect a genuine account
+   * change on re-pairing, distinct from a routine token refresh. */
+  userId?: number;
+  groupId?: number | null;
+  isLeader?: boolean;
 }
 
 /** A single endpoint value - either a static string or a function that generates a path */
@@ -289,15 +295,42 @@ export interface IProvider {
   checkMediaLicense?(mediaId: string, auth?: ContentProviderAuthData | null): Promise<MediaLicenseResult | null>;
   /** Resolve the lesson scheduled for today for a given category (provider-defined meaning, e.g. age group). */
   getTodayLesson?(category: number, auth?: ContentProviderAuthData | null): Promise<TodayLesson | null>;
+  /** Return the provider's full schedule (past, current, and future), if it supports one. */
+  getSchedules?(auth?: ContentProviderAuthData | null): Promise<ScheduleEntry[]>;
+  /** Fetch a lesson's playable files directly by ID (as opposed to browse-path-based getPlaylist). */
+  getPlaylistByLessonId?(lessonId: number, auth?: ContentProviderAuthData | null): Promise<ContentFile[]>;
 }
 
 export interface TodayLesson {
   courseId: number;
   courseTitle: string;
+  courseEpisode?: string;
+  courseUrl?: string;
+  courseThumb?: string;
   lessonId: number;
   lessonTitle: string;
+  lessonNumber?: string;
+  lessonUrl?: string;
+  lessonThumb?: string;
   scheduledDate: string;
   category: number | null;
   files: ContentFile[];
   instructions: Instructions;
+}
+
+/**
+ * A single entry from a provider's full schedule (past, current, and
+ * future) — e.g. CBN's shared org-wide calendar. Provider-agnostic shape;
+ * concrete providers (like CbnScheduleEntry) may include additional
+ * provider-specific fields as long as they satisfy this shape.
+ */
+export interface ScheduleEntry {
+  id: number;
+  lesson_id: number;
+  lesson_title: string;
+  thumb?: string;
+  category: number | null;
+  schedule_date: string;
+  status: number;
+  is_current: boolean;
 }

@@ -33,6 +33,7 @@ export { BibleProjectProvider } from "./providers/bibleProject";
 export { HighVoltageKidsProvider } from "./providers/highVoltage";
 export { JesusFilmProvider } from "./providers/jesusFilm";
 export { CbnProvider } from "./providers/cbn";
+export type { CbnScheduleEntry } from "./providers/cbn/CbnInterfaces";
 export { LifeChurchProvider } from "./providers/lifeChurch";
 
 // Registry functions

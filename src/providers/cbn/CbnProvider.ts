@@ -1,7 +1,7 @@
-import { ContentProviderConfig, ContentProviderAuthData, ContentItem, ContentFile, ProviderLogos, ProviderCapabilities, IProvider, AuthType, Instructions, DeviceAuthorizationResponse, DeviceFlowPollResult } from "../../interfaces";
+import { ContentProviderConfig, ContentProviderAuthData, ContentItem, ContentFile, ProviderLogos, ProviderCapabilities, IProvider, AuthType, Instructions, DeviceAuthorizationResponse, DeviceFlowPollResult, TodayLesson } from "../../interfaces";
 import { parsePath } from "../../pathUtils";
 import { ApiHelper, DeviceFlowHelper } from "../../helpers";
-import { CbnCatalogCategory, CbnCatalogCourse, CbnCourseDetail, CbnLessonPlaylist, CbnTodayResponse } from "./CbnInterfaces";
+import { CbnCatalogCategory, CbnCatalogCourse, CbnCourseDetail, CbnLessonPlaylist, CbnTodayResponse, CbnScheduleEntry, CbnSchedulesResponse } from "./CbnInterfaces";
 import { convertCatalogToFolders, convertCoursesToFolders, convertLessonsToFolders, convertPlaylistToFiles, convertPlaylistToInstructions } from "./CbnConverters";
 import { CBN_LOGO } from "./logo";
 const API_BASE = "https://sbamemberdev.wpenginepowered.com/wp-json/superbook/v1";
@@ -40,7 +40,8 @@ export class CbnProvider implements IProvider {
       courses: (catalogId: string) => `/courses/${catalogId}`,
       courseDetail: (courseId: string) => `/course-detail/${courseId}`,
       lessonPlaylist: (lessonId: string) => `/lesson-playlist/${lessonId}`,
-      today: "/today"
+      today: "/today",
+      schedules: "/schedules"
     }
   };
   readonly requiresAuth = true;
@@ -133,30 +134,50 @@ export class CbnProvider implements IProvider {
    * Returns null if nothing is scheduled for that school type (caller
    * should show an empty state and keep the school-type switcher visible).
    */
+  /**
+   * Returns the full shared org-wide schedule (past, current, and future),
+   * identical for any logged-in user regardless of role. Used for
+   * background auto-download look-ahead — grabbing lessons scheduled
+   * ahead of time, not just today's, so devices have real lead time to
+   * download over a good connection before the lesson is actually needed.
+   */
+  async getSchedules(auth?: ContentProviderAuthData | null): Promise<CbnScheduleEntry[]> {
+    const path = this.config.endpoints!.schedules as string;
+    const response = await this.apiRequest<CbnSchedulesResponse>(path, auth);
+    if (!response?.success || !Array.isArray(response.schedules)) return [];
+    return response.schedules;
+  }
+
+  /**
+   * Fetch a lesson's playlist directly by ID (as opposed to getPlaylist,
+   * which takes a browse-path). Used by background auto-download, which
+   * works from /schedules entries (lesson IDs) rather than folder paths.
+   */
+  async getPlaylistByLessonId(lessonId: number, auth?: ContentProviderAuthData | null): Promise<ContentFile[]> {
+    const playlist = await this.fetchPlaylist(String(lessonId), auth);
+    return playlist ? await convertPlaylistToFiles(playlist) : [];
+  }
+
   async getTodayLesson(
     category: number,
     auth?: ContentProviderAuthData | null
-  ): Promise<{
-    courseId: number;
-    courseTitle: string;
-    lessonId: number;
-    lessonTitle: string;
-    scheduledDate: string;
-    category: number | null;
-    files: ContentFile[];
-    instructions: Instructions;
-  } | null> {
+  ): Promise<TodayLesson | null> {
     const basePath = this.config.endpoints!.today as string;
     const response = await this.apiRequest<CbnTodayResponse>(`${basePath}?category=${category}`, auth);
-    console.log(`[cbn][DEBUG] today?category=${category} playlist length:`, response?.schedule?.playlist?.playlist?.length ?? "no schedule/playlist");
     if (!response?.success || !response.schedule) return null;
     const { schedule } = response;
     if (!schedule.playlist || schedule.playlist.playlist.length === 0) return null;
     return {
       courseId: schedule.course.id,
       courseTitle: schedule.course.title,
+      courseEpisode: schedule.course.episode || undefined,
+      courseUrl: schedule.course.url || undefined,
+      courseThumb: schedule.course.thumb || undefined,
       lessonId: schedule.lesson.id,
       lessonTitle: schedule.lesson.title,
+      lessonNumber: schedule.lesson.lesson_number || undefined,
+      lessonUrl: schedule.lesson.url || undefined,
+      lessonThumb: schedule.lesson.thumb || undefined,
       scheduledDate: schedule.date,
       category: schedule.category ?? null,
       files: await convertPlaylistToFiles(schedule.playlist),

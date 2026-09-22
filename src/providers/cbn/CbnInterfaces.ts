@@ -81,12 +81,18 @@ export interface CbnLessonPlaylist {
 export interface CbnTodayCourse {
   id: number;
   title: string;
+  episode?: string;
+  url?: string;
+  thumb?: string;
 }
 
 /** Lesson stub nested in a /today response */
 export interface CbnTodayLesson {
   id: number;
   title: string;
+  lesson_number?: string;
+  url?: string;
+  thumb?: string;
 }
 
 /**
@@ -106,4 +112,32 @@ export interface CbnTodaySchedule {
 export interface CbnTodayResponse {
   success: boolean;
   schedule: CbnTodaySchedule | null;
+}
+
+/**
+ * A single enriched entry from GET /schedules — the whole shared,
+ * org-wide calendar (past, current, and future), visible identically to
+ * any logged-in user regardless of role.
+ */
+export interface CbnScheduleEntry {
+  id: number;
+  course_id: number;
+  course_title: string;
+  course_url?: string;
+  episode?: string;
+  lesson_id: number;
+  lesson_title: string;
+  lesson_url?: string;
+  lesson_number?: string;
+  thumb?: string;
+  category: number | null;
+  schedule_date: string;
+  status: number;
+  is_current: boolean;
+}
+
+/** Full response from GET /schedules */
+export interface CbnSchedulesResponse {
+  success: boolean;
+  schedules: CbnScheduleEntry[];
 }

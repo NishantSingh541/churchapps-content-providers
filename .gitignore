@@ -15,3 +15,4 @@ dist/
 .pnp.*
 # npm is blocked (preinstall guard); never commit an npm lockfile
 package-lock.json
+*.tgz
